@@ -109,7 +109,7 @@ typedef struct {
     uint8_t type; // BAM_CINS/BAM_CDEL/BAM_CDIFF
     hts_pos_t pos, PS; // phase set
     uint8_t *ref_bases; int ref_len;
-    uint8_t is_somatic;
+    uint8_t is_somatic, is_sv;
     uint8_t *tsd_seq; int tsd_len, polya_len; hts_pos_t tsd_pos1, tsd_pos2; // target site duplication, 2 TSDs for DEL
     int te_seq_i, te_is_rev; // char *rep_name, *rep_family, *rep_class; use te_seq_i to retrieve TE sequence info
 
@@ -117,6 +117,7 @@ typedef struct {
     uint8_t **alt_bases; int *alt_len;
     int DP, AD[2]; uint8_t GT[2]; // DP/AD/GT
     int QUAL, GQ, PL[6]; // phred-scaled, QUAL/FILTER/GQ/PL
+    int *alt_read_i;
 } var1_t;
 
 typedef struct var_t {
@@ -163,7 +164,7 @@ typedef struct call_var_opt_t {
     // Alu/L1/SVA sequences
     char *te_seq_fn; char **te_seq_names; int n_te_seqs;
     int te_kmer_len; kmer32_hash_t **te_for_h, **te_rev_h;
-    int output_sv_reads; // output supporting read IDs for each SV
+    int output_sv_rnames, output_somatic_sv_rnames; // output supporting read IDs for each SV
     // general
     // int max_ploidy;
     int pl_threads, n_threads;

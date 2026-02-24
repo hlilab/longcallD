@@ -12,7 +12,7 @@ struct bam_chunk_t;
 struct var_t;
 
 int write_vcf_header(bam_hdr_t *hdr, struct call_var_opt_t *opt);
-int write_var_to_vcf(struct var_t *vars, const struct call_var_opt_t *opt, char *chrom);
+int write_var_to_vcf(struct var_t *vars, const struct call_var_opt_t *opt, bam_chunk_t *chunk);
 
 #ifdef __cplusplus
 }

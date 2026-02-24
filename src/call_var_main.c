@@ -37,6 +37,8 @@ const struct option call_var_opt [] = {
     { "autosome", 0, NULL, 0},
     { "mosaic", 0, NULL, 0},
     { "refine-aln", 0, NULL, 0},
+    { "out-sv-rnames", 0, NULL, 0},
+    { "out-som-sv-rnames", 0, NULL, 0},
     // { "alpha", 1, NULL, 0},
     // { "beta", 1, NULL, 0},
     { "max-somvar", 1, NULL, 0},
@@ -206,7 +208,7 @@ call_var_opt_t *call_var_init_para(void) {
     opt->min_sv_len = LONGCALLD_MIN_SV_LEN;
     opt->min_tsd_len = LONGCALLD_MIN_TSD_LEN; opt->max_tsd_len = LONGCALLD_MAX_TSD_LEN;
     opt->min_polya_len = LONGCALLD_MIN_POLYA_LEN; opt->min_polya_ratio = LONGCALLD_MIN_POLYA_RATIO;
-    opt->output_sv_reads = 0;
+    opt->output_sv_rnames = 0; opt->output_somatic_sv_rnames = 0;
 
     initialize_lgamma_cache(opt);
     opt->te_seq_fn = NULL; opt->n_te_seqs = 0; opt->te_kmer_len = 15; opt->te_for_h = NULL; opt->te_rev_h = NULL;
@@ -297,6 +299,7 @@ void var_free(var_t *v) {
             if (v->vars[i].tsd_len > 0) {
                 free(v->vars[i].tsd_seq);
             }
+            if (v->vars[i].is_sv && v->vars[i].AD[1] > 0) free(v->vars[i].alt_read_i);
         }
         free(v->vars);
     }
@@ -793,7 +796,7 @@ static void *call_var_worker_pipeline(void *shared, int step, void *in) { // kt_
         int n_out_vars = 0, n_out_reads = 0;
         for (int i = 0; i < s->n_chunks; ++i) {
             bam_chunk_t *c = s->chunks + i;
-            n_out_vars += write_var_to_vcf(s->vars+i, pl->opt, c->tname);
+            n_out_vars += write_var_to_vcf(s->vars+i, pl->opt, c);
             if (pl->opt->out_aln_fp != NULL) n_out_reads += write_read_to_bam(c, pl->opt, pl->io_aux);
             var_free(s->vars + i);  // free output
         }
@@ -858,6 +861,8 @@ static void call_var_usage(void) {//main usage
     fprintf(stderr, "                          note: multiple input BAM/CRAM files will be merged in SAM/BAM/CRAM output\n");
     fprintf(stderr, "    --refine-aln          refine alignment in SAM/BAM/CRAM output\n");
     fprintf(stderr, "                          note: output SAM/BAM/CRAM may be unsorted when --refine-aln is set\n");
+    fprintf(stderr, "    --out-sv-rnames          output names of all reads supporting alternative allele in INFO field of VCF output for all SVs [False]\n");
+    fprintf(stderr, "    --out-som-sv-rnames      output names of all reads supporting alternative allele in INFO field of VCF output for mosaic/somatic SVs [False]\n");
     // fprintf(stderr, "\n");
     fprintf(stderr, "  Variant calling:\n");
     fprintf(stderr, "    -c --min-cov     INT  min. total read coverage for candidate variant [%d]\n", LONGCALLD_MIN_CAND_DP);
@@ -941,6 +946,8 @@ int call_var_main(int argc, char *argv[]) {
                         opt->somatic_win_max_vars = strtol(optarg, &s, 10); 
                         if (*s == ',') opt->somatic_win = strtol(s+1, &s, 10);
                     } else if (strcmp(call_var_opt[op_idx].name, "refine-aln") == 0) opt->refine_bam = 1;
+                    else if (strcmp(call_var_opt[op_idx].name, "out-sv-rnames") == 0) opt->output_sv_rnames = 1;
+                    else if (strcmp(call_var_opt[op_idx].name, "out-som-sv-rnames") == 0) opt->output_somatic_sv_rnames = 1;
                     break;
             case 's': opt->out_somatic = 1; break;
             case 'm': opt->out_methylation = 1; break;

@@ -10,13 +10,10 @@
 <!-- [![Published in Bioinformatics](https://img.shields.io/badge/Published%20in-Bioinformatics-blue.svg)](https://dx.doi.org/10.1093/bioinformatics/btaa963) -->
 <!-- [![GitHub Issues](https://img.shields.io/github/issues/yangao07/longcallD.svg?label=Issues)](https://github.com/yangao07/longcallD/issues) -->
 
-## Updates (release v0.0.8)
+## Updates (release v0.0.9)
 
-* Fix variant representation issues for overlapping variants
-* Revoke ultraLowMem mode of WFA to avoid potential variant representation issues
-* Fix output BAM errors
-* Output BAM includes all reads (even those not used for variant calling)
-* Fix a bug with --refine-aln
+* Fix variant calling close to start/end boundaries of chromosomes
+* Add `--out-sv-rnames` and `--out-som-sv-rnames` to output SV-supporing read names (tag: `SVREADS`) in INFO field of VCF
 <!-- * Add --STR  -->
 
 
@@ -24,11 +21,11 @@
 ```sh
 # Download pre-built executables and test data (recommended)
 # Linux-x64
-wget https://github.com/yangao07/longcallD/releases/download/v0.0.8/longcallD-v0.0.8_x64-linux.tar.gz
-tar -zxvf longcallD-v0.0.8_x64-linux.tar.gz && cd longcallD-v0.0.8_x64-linux
+wget https://github.com/yangao07/longcallD/releases/download/v0.0.9/longcallD-v0.0.9_x64-linux.tar.gz
+tar -zxvf longcallD-v0.0.9_x64-linux.tar.gz && cd longcallD-v0.0.9_x64-linux
 # MacOS-arm64
-wget https://github.com/yangao07/longcallD/releases/download/v0.0.8/longcallD-v0.0.8_arm64-macos.tar.gz
-tar -zxvf longcallD-v0.0.8_arm64-macos.tar.gz && cd longcallD-v0.0.8_arm64-macos
+wget https://github.com/yangao07/longcallD/releases/download/v0.0.9/longcallD-v0.0.9_arm64-macos.tar.gz
+tar -zxvf longcallD-v0.0.9_arm64-macos.tar.gz && cd longcallD-v0.0.9_arm64-macos
 
 # PacBio HiFi reads
 ./longcallD call ./test_data/chr11_2M.fa ./test_data/HG002_chr11_hifi_test.bam --hifi > HG002_hifi_test.vcf
@@ -40,7 +37,7 @@ man ./longcallD.1
 ``` -->
 
 ## Table of Contents
-- [Updates (release v0.0.8)](#updates-release-v008)
+- [Updates (release v0.0.9)](#updates-release-v009)
 - [Getting Started](#getting-started)
 - [Table of Contents](#table-of-contents)
 - [Introduction](#introduction)
@@ -87,13 +84,13 @@ Providing the annotation sequence of common mobile elements, i.e., Alu/L1/SVA, u
 ### Pre-built executables (recommended)
 **Linux-x64**
 ```
-wget https://github.com/yangao07/longcallD/releases/download/v0.0.8/longcallD-v0.0.8_x64-linux.tar.gz
-tar -zxvf longcallD-v0.0.8_x64-linux.tar.gz
+wget https://github.com/yangao07/longcallD/releases/download/v0.0.9/longcallD-v0.0.9_x64-linux.tar.gz
+tar -zxvf longcallD-v0.0.9_x64-linux.tar.gz
 ```
 **MacOS-arm64**
 ```
-wget https://github.com/yangao07/longcallD/releases/download/v0.0.8/longcallD-v0.0.8_arm64-macos.tar.gz
-tar -zxvf longcallD-v0.0.8_arm64-macos.tar.gz
+wget https://github.com/yangao07/longcallD/releases/download/v0.0.9/longcallD-v0.0.9_arm64-macos.tar.gz
+tar -zxvf longcallD-v0.0.9_arm64-macos.tar.gz
 ```
 
 **Linux-arm64/macOS-x64**
@@ -109,9 +106,9 @@ conda install -c bioconda longcalld
 ### Build from source
 To compile longcallD from source, ensure you have **GCC/clang(9.0+)** and **zlib/libbz2/liblzma/libcurl** (for htslib) installed. 
 ```
-wget https://github.com/yangao07/longcallD/releases/download/v0.0.8/longcallD-v0.0.8.tar.gz
-tar -zxvf longcallD-v0.0.8.tar.gz
-cd longcallD-v0.0.8; make
+wget https://github.com/yangao07/longcallD/releases/download/v0.0.9/longcallD-v0.0.9.tar.gz
+tar -zxvf longcallD-v0.0.9.tar.gz
+cd longcallD-v0.0.9; make
 ```
 
 ## Usage

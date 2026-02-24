@@ -1350,7 +1350,7 @@ int make_variants(const call_var_opt_t *opt, bam_chunk_t *chunk, var_t **_var) {
     if (n_cand_vars <= 0) return 0;
     char *ref_seq = chunk->ref_seq; hts_pos_t ref_beg = chunk->ref_beg;
     hts_pos_t active_reg_beg = chunk->reg_beg, active_reg_end = chunk->reg_end;
-    cand_var_t *cand_vars = chunk->cand_vars;
+    cand_var_t *cand_vars = chunk->cand_vars; read_var_profile_t *p = chunk->read_var_profile;
     (*_var) = (var_t*)malloc(sizeof(var_t));
     var_t *var = *_var;
     var->n = 0; var->m = n_cand_vars;
@@ -1411,6 +1411,7 @@ int make_variants(const call_var_opt_t *opt, bam_chunk_t *chunk, var_t **_var) {
             var->vars[i].alt_bases = (uint8_t**)malloc(2 * sizeof(uint8_t*));
         }
         var->vars[i].n_alt_allele = 0;
+        var->vars[i].is_sv = 0;
         for (int hap=1; hap <= 2; ++hap) {
             int hap_alle = hap == 1 ? hap1_alle : hap2_alle;
             if (hap_alle != 0) { // alt allele
@@ -1433,12 +1434,36 @@ int make_variants(const call_var_opt_t *opt, bam_chunk_t *chunk, var_t **_var) {
                     }
                 }
                 var->vars[i].alt_len[var->vars[i].n_alt_allele] = alt_len;
+                if (abs(alt_len - var->vars[i].ref_len) >= opt->min_sv_len) var->vars[i].is_sv = 1;
                 var->vars[i].GT[hap-1] = ++var->vars[i].n_alt_allele;
                 if (is_hom) hom_alt_is_set = 1;
             } else var->vars[i].GT[hap-1] = 0;
         }
         var->vars[i].DP = cand_vars[cand_i].total_cov;
         for (int j = 0; j < cand_vars[cand_i].n_uniq_alles; ++j) var->vars[i].AD[j] = cand_vars[cand_i].alle_covs[j];
+        if (var->vars[i].is_sv && var->vars[i].AD[1] > 0) { // collect alt_read_i from read_var_profile
+            var->vars[i].alt_read_i = (int*)malloc(var->vars[i].AD[1] * sizeof(int));
+            int alt_read_i_idx = 0;
+            for (int k = 0; k < chunk->n_reads; ++k) {
+                int read_i = chunk->ordered_read_ids[k];
+                if (chunk->is_skipped[read_i]) continue;
+                read_var_profile_t *p1 = p + read_i;
+                if (p1->start_var_idx < 0 || p1->end_var_idx < 0) continue;
+                if (cand_i < p1->start_var_idx || cand_i > p1->end_var_idx) continue;
+                int allele = p1->alleles[cand_i - p1->start_var_idx];
+                if (allele == 1) {
+                    // fprintf(stderr, "Collect alt_read_i for var: %s:%" PRIi64 " read: %s allele: %d\n", chunk->tname, var->vars[i].pos, chunk->read_names[read_i], allele);
+                    if (alt_read_i_idx >= var->vars[i].AD[1]) {
+                        _err_error_exit("Error: alt_read_i_idx: %d exceeds AD[1]: %d for var: %s:%" PRIi64 " %d-%c-%d\n", alt_read_i_idx, var->vars[i].AD[1], chunk->tname, var->vars[i].pos, var->vars[i].ref_len, BAM_CIGAR_STR[var->vars[i].type], var->vars[i].alt_len[0]);
+                    }
+                    var->vars[i].alt_read_i[alt_read_i_idx++] = read_i;
+                }
+            }
+            if (alt_read_i_idx != var->vars[i].AD[1]) {
+                _err_error("Error: alt_read_i_idx: %d does not match AD[1]: %d for var: %s:%" PRIi64 " %d-%c-%d\n", alt_read_i_idx, var->vars[i].AD[1], chunk->tname, var->vars[i].pos, var->vars[i].ref_len, BAM_CIGAR_STR[var->vars[i].type], var->vars[i].alt_len[0]);
+                var->vars[i].AD[1] = alt_read_i_idx;
+            }
+        } else var->vars[i].alt_read_i = NULL;
         var->vars[i].QUAL = cal_var_QUAL1(var->vars[i].AD[0], var->vars[i].AD[1], opt->log_p, opt->log_1p, opt->max_qual);
         var->vars[i].GQ = cal_sample_GQ(var->vars[i].AD[0], var->vars[i].AD[1], opt->log_p, opt->log_1p, opt->log_2, opt->max_gq);
         i++;

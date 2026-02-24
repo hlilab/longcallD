@@ -91,13 +91,13 @@ void write_vcf_header(bam_hdr_t *hdr, struct call_var_opt_t *opt) {
     opt->vcf_hdr = vcf_hdr;
 }
 
-int write_var_to_vcf(var_t *vars, const struct call_var_opt_t *opt, char *chrom) {
+int write_var_to_vcf(var_t *vars, const struct call_var_opt_t *opt, bam_chunk_t *chunk) {
+    char *chrom = chunk->tname;
     htsFile *out_vcf = opt->out_vcf;  // htsFile pointer
     int n_vars = vars->n;
     int n_output_vars = 0;
     int buf_m = 50000; char *buffer = (char*)malloc(buf_m * sizeof(char));  // Buffer for output string
     int len = 0;        // Length of the output string
-    int min_sv_len = opt->min_sv_len;
 
     for (int var_i = 0; var_i < n_vars; var_i++) {
         var1_t var = vars->vars[var_i];
@@ -157,16 +157,15 @@ int write_var_to_vcf(var_t *vars, const struct call_var_opt_t *opt, char *chrom)
         }
 
         // Structural Variant (SV) annotation
-        int is_sv = 0, k = 0;
+        int k = 0;
         char SVLEN[1024] = "SVLEN=", tmp[1024];
         char SVTYPE[1024] = "SVTYPE=";
         for (int i = 0; i < var.n_alt_allele; i++) { // assert(var.n_alt_allele == 1)
-            if (abs(var.alt_len[i] - var.ref_len) >= min_sv_len) { 
+            if (var.is_sv) { 
                 if (k > 0) {
                     strcat(SVLEN, ",");
                     strcat(SVTYPE, ",");
                 }
-                is_sv = 1;
                 sprintf(tmp, "%d", var.alt_len[i] - var.ref_len);
                 strcat(SVLEN, tmp);
                 sprintf(tmp, "%s", var.alt_len[i] > var.ref_len ? "INS" : "DEL");
@@ -180,7 +179,7 @@ int write_var_to_vcf(var_t *vars, const struct call_var_opt_t *opt, char *chrom)
         if (var.is_somatic) len += snprintf(buffer + len, buf_m - len, "SOMATIC;");
         if (var.te_seq_i >= 0) len += snprintf(buffer + len, buf_m - len, "MEI;");
         len += snprintf(buffer + len, buf_m - len, "END=%" PRId64 "", var.pos + var.ref_len - 1);
-        if (is_sv) { 
+        if (var.is_sv) { 
             len += snprintf(buffer + len, buf_m - len, ";%s;%s", SVTYPE, SVLEN);
             if (var.tsd_len > 0) {
                 len += snprintf(buffer + len, buf_m - len, ";TSD=");
@@ -189,6 +188,23 @@ int write_var_to_vcf(var_t *vars, const struct call_var_opt_t *opt, char *chrom)
                 if (var.tsd_pos2 > 0) len += snprintf(buffer + len, buf_m - len, ";TSDPOS2=%" PRId64 "", var.tsd_pos2);
             }
             if (var.te_seq_i >= 0) len += snprintf(buffer + len, buf_m - len, ";REPNAME=%c%s", "+-"[var.te_is_rev], opt->te_seq_names[var.te_seq_i]);
+            if (opt->output_sv_rnames || (opt->output_somatic_sv_rnames && var.is_somatic)) {
+                // check if the buffer is large enough for read names
+                int svreads_needed = 9; // ";SVREADS="
+                for (int i = 0; i < var.AD[1]; ++i)
+                    svreads_needed += strlen(chunk->read_names[var.alt_read_i[i]]) + 1;
+                if (len + svreads_needed >= buf_m) {
+                    buf_m = len + svreads_needed + 1024;
+                    buffer = (char*)realloc(buffer, buf_m);
+                }
+
+                len += snprintf(buffer + len, buf_m - len, ";SVREADS=");
+                for (int i = 0; i < var.AD[1]; ++i) {
+                    if (i > 0) len += snprintf(buffer + len, buf_m - len, ",");
+                    int alt_read_i = var.alt_read_i[i];
+                    len += snprintf(buffer + len, buf_m - len, "%s", chunk->read_names[alt_read_i]);
+                }
+            }
         }
         len += snprintf(buffer + len, buf_m - len, "\t");
 

@@ -230,6 +230,7 @@ void update_read_var_profile_with_allele(int var_i, int allele_i, int alt_qi, re
 
 
 int get_digar_ave_qual(digar1_t *digar, const uint8_t *qual) {
+    if (digar->is_low_qual) return 0;
     if (digar->qi < 0) return 0;
     int q_start, q_end;
     if (digar->type == BAM_CDEL) {
@@ -1327,9 +1328,13 @@ int collect_digar_from_ref_seq(bam_chunk_t *chunk, int read_i, const struct call
     return skip == 1 ? -1 : 0;
 }
 
-int bam_chunk_init0(bam_chunk_t *chunk, int n_reads, int n_bam) {
+int bam_chunk_init0(bam_chunk_t *chunk, const struct call_var_opt_t *opt, int n_reads, int n_bam) {
     // input
     chunk->n_reads = 0; chunk->m_reads = n_reads; chunk->ordered_read_ids = (int*)malloc(n_reads * sizeof(int));
+    if (opt->output_sv_rnames || opt->output_somatic_sv_rnames) {
+        chunk->read_names = (char**)malloc(n_reads * sizeof(char*));
+        for (int i = 0; i < n_reads; i++) chunk->read_names[i] = NULL;
+    }
     chunk->n_bam = n_bam;
     chunk->n_up_ovlp_reads = (int*)calloc(n_bam, sizeof(int)); chunk->n_up_ovlp_skip_reads = (int*)calloc(n_bam, sizeof(int));
     chunk->up_ovlp_read_i = (int**)malloc(n_bam * sizeof(int*));
@@ -1368,9 +1373,10 @@ int bam_chunk_init0(bam_chunk_t *chunk, int n_reads, int n_bam) {
     return 0;
 }
 
-int bam_chunk_realloc(bam_chunk_t *chunk) {
+int bam_chunk_realloc(bam_chunk_t *chunk, const struct call_var_opt_t *opt) {
     int m_reads = chunk->m_reads * 2;
     chunk->reads = (bam1_t**)realloc(chunk->reads, m_reads * sizeof(bam1_t*));
+    if (opt->output_sv_rnames || opt->output_somatic_sv_rnames) chunk->read_names = (char**)realloc(chunk->read_names, m_reads * sizeof(char*));
     chunk->ordered_read_ids = (int*)realloc(chunk->ordered_read_ids, m_reads * sizeof(int));
     for (int i = 0; i < chunk->n_bam; ++i) {
         chunk->up_ovlp_read_i[i] = (int*)realloc(chunk->up_ovlp_read_i[i], m_reads * sizeof(int));
@@ -1480,6 +1486,12 @@ void bam_chunk_post_free(bam_chunk_t *chunk, const struct call_var_opt_t *opt) {
         free(chunk->reads);
     }
     free(chunk->ordered_read_ids);
+    // save read_var_profile for output_sv_rnames or output_somatic_sv_rnames, which will be used in make_variants
+    if (chunk->read_var_profile != NULL) free_read_var_profile(chunk->read_var_profile, chunk->n_reads);
+    if (opt->output_sv_rnames || opt->output_somatic_sv_rnames) {
+        for (int i = 0; i < chunk->n_reads; i++) free(chunk->read_names[i]); 
+        free(chunk->read_names);
+    }
 }
 
 // free variables that will not be used in stitch & make variants
@@ -1493,7 +1505,6 @@ void bam_chunk_mid_free(bam_chunk_t *chunk, const struct call_var_opt_t *opt) {
         } free(chunk->noisy_reg_to_reads);
     }
     if (chunk->noisy_reg_to_n_reads != NULL) free(chunk->noisy_reg_to_n_reads);
-    if (chunk->read_var_profile != NULL) free_read_var_profile(chunk->read_var_profile, chunk->n_reads);
     if (chunk->read_var_cr != NULL) cr_destroy(chunk->read_var_cr);
 }
 
@@ -1622,7 +1633,7 @@ int collect_ref_seq_bam_main(const struct call_var_pl_t *pl, struct call_var_io_
     call_var_opt_t *opt = pl->opt;
 
     int min_mapq = opt->min_mq;
-    bam_chunk_init0(chunk, 4096, io_aux->n_bam);
+    bam_chunk_init0(chunk, opt, 4096, io_aux->n_bam);
     chunk->reg_chunk_i = reg_chunk_i; chunk->reg_i = reg_i;
     chunk->tid = tid; chunk->tname = io_aux->headers[0]->target_name[tid]; chunk->reg_beg = reg_beg; chunk->reg_end = reg_end;
     hts_pos_t min_read_beg = reg_beg, max_read_end = reg_end;
@@ -1655,8 +1666,11 @@ int collect_ref_seq_bam_main(const struct call_var_pl_t *pl, struct call_var_io_
             if (chunk->reads[chunk->n_reads]->core.pos+1 < min_read_beg) min_read_beg = chunk->reads[chunk->n_reads]->core.pos+1;
             if (bam_endpos(chunk->reads[chunk->n_reads]) > max_read_end) max_read_end = bam_endpos(chunk->reads[chunk->n_reads]);
             // check if read is overlapping with next region
+            if (opt->output_sv_rnames || opt->output_somatic_sv_rnames) {
+                chunk->read_names[chunk->n_reads] = strdup(bam_get_qname(chunk->reads[chunk->n_reads]));
+            }
             chunk->n_reads++;
-            if (chunk->n_reads == chunk->m_reads) bam_chunk_realloc(chunk);
+            if (chunk->n_reads == chunk->m_reads) bam_chunk_realloc(chunk, opt);
         }
         bam_itr_destroy(iter);
     }
