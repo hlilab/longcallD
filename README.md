@@ -14,7 +14,7 @@
 
 * Fix variant calling close to start/end boundaries of chromosomes
 * Add `--out-sv-rnames` and `--out-som-sv-rnames` to output SV-supporing read names (tag: `SVREADS`) in FORMAT field of VCF
-<!-- * Add --STR  -->
+* Add `CLEAN` INFO tag for variants in clean regions, i.e., SNPs or simple small indels (≤5bp) in non-repetitive regions which are generally more reliable, to help with downstream filtering and benchmarking
 
 
 ## Getting Started

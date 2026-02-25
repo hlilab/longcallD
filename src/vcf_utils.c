@@ -58,6 +58,7 @@ void write_vcf_header(bam_hdr_t *hdr, struct call_var_opt_t *opt) {
     // INFO fields
     bcf_hdr_append(vcf_hdr, "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the variant described in this record\">");
     bcf_hdr_append(vcf_hdr, "##INFO=<ID=SOMATIC,Number=0,Type=Flag,Description=\"Somatic/mosaic variant\">");
+    bcf_hdr_append(vcf_hdr, "##INFO=<ID=CLEAN,Number=0,Type=Flag,Description=\"Clean-region variant (SNP or simple indel in non-repetitive region)\">");
     bcf_hdr_append(vcf_hdr, "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">");
     bcf_hdr_append(vcf_hdr, "##INFO=<ID=SVLEN,Number=A,Type=Integer,Description=\"Difference in length between REF and ALT alleles\">");
     // TSD info
@@ -177,6 +178,7 @@ int write_var_to_vcf(var_t *vars, const struct call_var_opt_t *opt, bam_chunk_t 
         
         // Write QUAL, FILTER, INFO
         len += snprintf(buffer + len, buf_m - len, "\t%d\tPASS\t", var.QUAL);
+        if (var.is_clean) len += snprintf(buffer + len, buf_m - len, "CLEAN;");
         if (var.is_somatic) len += snprintf(buffer + len, buf_m - len, "SOMATIC;");
         if (var.te_seq_i >= 0) len += snprintf(buffer + len, buf_m - len, "MEI;");
         len += snprintf(buffer + len, buf_m - len, "END=%" PRId64 "", var.pos + var.ref_len - 1);

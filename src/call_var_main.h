@@ -109,7 +109,7 @@ typedef struct {
     uint8_t type; // BAM_CINS/BAM_CDEL/BAM_CDIFF
     hts_pos_t pos, PS; // phase set
     uint8_t *ref_bases; int ref_len;
-    uint8_t is_somatic, is_sv;
+    uint8_t is_somatic, is_sv, is_clean; // clean: SNP or simple indel in non-repetitive region
     uint8_t *tsd_seq; int tsd_len, polya_len; hts_pos_t tsd_pos1, tsd_pos2; // target site duplication, 2 TSDs for DEL
     int te_seq_i, te_is_rev; // char *rep_name, *rep_family, *rep_class; use te_seq_i to retrieve TE sequence info
 

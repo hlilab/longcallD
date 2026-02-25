@@ -1412,6 +1412,7 @@ int make_variants(const call_var_opt_t *opt, bam_chunk_t *chunk, var_t **_var) {
         }
         var->vars[i].n_alt_allele = 0;
         var->vars[i].is_sv = 0;
+        var->vars[i].is_clean = (chunk->var_i_to_cate[cand_i] & LONGCALLD_CAND_GERMLINE_CLEAN_VAR_CATE) != 0;
         for (int hap=1; hap <= 2; ++hap) {
             int hap_alle = hap == 1 ? hap1_alle : hap2_alle;
             if (hap_alle != 0) { // alt allele
