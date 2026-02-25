@@ -60,7 +60,6 @@ void write_vcf_header(bam_hdr_t *hdr, struct call_var_opt_t *opt) {
     bcf_hdr_append(vcf_hdr, "##INFO=<ID=SOMATIC,Number=0,Type=Flag,Description=\"Somatic/mosaic variant\">");
     bcf_hdr_append(vcf_hdr, "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">");
     bcf_hdr_append(vcf_hdr, "##INFO=<ID=SVLEN,Number=A,Type=Integer,Description=\"Difference in length between REF and ALT alleles\">");
-    bcf_hdr_append(vcf_hdr, "##INFO=<ID=SVREADS,Number=.,Type=String,Description=\"IDs of reads supporting the SV\">");
     // TSD info
     bcf_hdr_append(vcf_hdr, "##INFO=<ID=TSD,Number=A,Type=String,Description=\"Target site duplication sequence\">");
     bcf_hdr_append(vcf_hdr, "##INFO=<ID=TSDLEN,Number=A,Type=Integer,Description=\"Length of target site duplication\">");
@@ -79,6 +78,8 @@ void write_vcf_header(bam_hdr_t *hdr, struct call_var_opt_t *opt) {
     bcf_hdr_append(vcf_hdr, "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Read depth for each allele\">");
     bcf_hdr_append(vcf_hdr, "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Phred-scaled genotype likelihoods rounded to the closest integer\">");
     bcf_hdr_append(vcf_hdr, "##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"Phase set\">");
+    // per-sample SV supporting read IDs
+    bcf_hdr_append(vcf_hdr, "##FORMAT=<ID=SVREADS,Number=.,Type=String,Description=\"IDs of reads supporting the SV\">");
 
     // Add sample
     bcf_hdr_add_sample(vcf_hdr, sample_name);
@@ -188,23 +189,6 @@ int write_var_to_vcf(var_t *vars, const struct call_var_opt_t *opt, bam_chunk_t 
                 if (var.tsd_pos2 > 0) len += snprintf(buffer + len, buf_m - len, ";TSDPOS2=%" PRId64 "", var.tsd_pos2);
             }
             if (var.te_seq_i >= 0) len += snprintf(buffer + len, buf_m - len, ";REPNAME=%c%s", "+-"[var.te_is_rev], opt->te_seq_names[var.te_seq_i]);
-            if (opt->output_sv_rnames || (opt->output_somatic_sv_rnames && var.is_somatic)) {
-                // check if the buffer is large enough for read names
-                int svreads_needed = 9; // ";SVREADS="
-                for (int i = 0; i < var.AD[1]; ++i)
-                    svreads_needed += strlen(chunk->read_names[var.alt_read_i[i]]) + 1;
-                if (len + svreads_needed >= buf_m) {
-                    buf_m = len + svreads_needed + 1024;
-                    buffer = (char*)realloc(buffer, buf_m);
-                }
-
-                len += snprintf(buffer + len, buf_m - len, ";SVREADS=");
-                for (int i = 0; i < var.AD[1]; ++i) {
-                    if (i > 0) len += snprintf(buffer + len, buf_m - len, ",");
-                    int alt_read_i = var.alt_read_i[i];
-                    len += snprintf(buffer + len, buf_m - len, "%s", chunk->read_names[alt_read_i]);
-                }
-            }
         }
         len += snprintf(buffer + len, buf_m - len, "\t");
 
@@ -215,20 +199,48 @@ int write_var_to_vcf(var_t *vars, const struct call_var_opt_t *opt, bam_chunk_t 
             gt_seperator = '/';
             if (gt1 > gt2) { int tmp = gt1; gt1 = gt2; gt2 = tmp;  }
         }
-        if (is_hom || var.PS == 0) 
-            len += snprintf(buffer + len, buf_m - len, "GT:DP:AD:GQ\t%d%c%d:%d:", gt1, gt_seperator, gt2, var.DP);
-        else 
-            len += snprintf(buffer + len, buf_m - len, "GT:DP:AD:GQ:PS\t%d%c%d:%d:", gt1, gt_seperator, gt2, var.DP);
+        // add SVREADS to FORMAT if outputting supporting read names for SVs
+        len += snprintf(buffer + len, buf_m - len, "GT:DP:AD:GQ");
+        if (is_hom == 0 && var.PS != 0) len += snprintf(buffer + len, buf_m - len, ":PS");
+        if (var.is_sv && (opt->output_sv_rnames || (opt->output_somatic_sv_rnames && var.is_somatic))) {
+            len += snprintf(buffer + len, buf_m - len, ":SVREADS");
+        }
+        len += snprintf(buffer + len, buf_m - len, "\t");
 
+        // GT:DP
+        len += snprintf(buffer + len, buf_m - len, "%d%c%d:%d:", gt1, gt_seperator, gt2, var.DP);
+        // AD
         for (int j = 0; j < 1 + var.n_alt_allele; j++) {
             if (j > 0) len += snprintf(buffer + len, buf_m - len, ",");
             len += snprintf(buffer + len, buf_m - len, "%d", var.AD[j]);
         }
-
-        if (is_hom || var.PS == 0) 
-            len += snprintf(buffer + len, buf_m - len, ":%d\n", var.GQ);
-        else 
-            len += snprintf(buffer + len, buf_m - len, ":%d:%" PRId64 "\n", var.GQ, var.PS);
+        // GQ
+        len += snprintf(buffer + len, buf_m - len, ":%d", var.GQ);
+        // PS
+        if (is_hom == 0 && var.PS != 0) 
+            len += snprintf(buffer + len, buf_m - len, ":%" PRId64 "", var.PS);
+        // SVREADS
+        if (var.is_sv && (opt->output_sv_rnames || (opt->output_somatic_sv_rnames && var.is_somatic))) {
+            // check if the buffer is large enough for read names
+            int svreads_needed = 0; // 
+            for (int i = 0; i < var.AD[1]; ++i)
+                svreads_needed += strlen(chunk->read_names[var.alt_read_i[i]]) + 1;
+            if (len + svreads_needed >= buf_m) {
+                buf_m = len + svreads_needed + 1024;
+                buffer = (char*)realloc(buffer, buf_m);
+            }
+            len += snprintf(buffer + len, buf_m - len, ":");
+            if (var.AD[1] > 0) {
+                for (int i = 0; i < var.AD[1]; ++i) {
+                    if (i > 0) len += snprintf(buffer + len, buf_m - len, ",");
+                    int alt_read_i = var.alt_read_i[i];
+                    len += snprintf(buffer + len, buf_m - len, "%s", chunk->read_names[alt_read_i]);
+                }
+            } else { // for SVs without read support, output "." for SVREADS
+                len += snprintf(buffer + len, buf_m - len, ".");
+            }
+        }
+        len += snprintf(buffer + len, buf_m - len, "\n");
 
         // Write to htsFile
         if (out_vcf->format.compression!=no_compression) {

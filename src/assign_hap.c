@@ -1154,9 +1154,9 @@ int has_dense_diff(bam_chunk_t *chunk, cand_var_t *var, int var_i, digar_t *diga
         diff_pos[n_diff++] = digar->digars[i].pos;
     }
     int is_dense = 0;
-    for (int i = max_diff+1; i < n_diff; ++i) {
+    for (int i = max_diff; i < n_diff; ++i) {
         hts_pos_t cur_pos = diff_pos[i];
-        hts_pos_t last_pos = diff_pos[i - max_diff-1];
+        hts_pos_t last_pos = diff_pos[i - max_diff];
         if (cur_pos - last_pos <= win) {
             is_dense = 1; // found dense differences
             break;
@@ -1630,6 +1630,8 @@ hts_pos_t select_somatic_phase_set_alt_hap(const call_var_opt_t *opt, bam_chunk_
         if (no_phase_var_is_somatic(opt, chunk, var_i, aux_info)) ps = 0;
         var->somatic_aux_info = aux_info; // store aux info for somatic variant
     }
+    // print aux_info
+    // fprintf(stderr, "CandSomaticVar Aux info: %s\t%" PRIi64 "\tdensDiff: %d\tAltDP: %d\tDisToVar: %d\n", chunk->tname, var->pos, var->somatic_aux_info->no_dense_diff[0], var->somatic_aux_info->hap_alt_dp, var->somatic_aux_info->min_dis_to_var);
     for (int i = 0; i < ovlp_n; ++i) {
         for (int j = 0; j < 3; ++j) free(phase_set_to_hap_alle_profile[i][j]);
         free(phase_set_to_hap_alle_profile[i]);

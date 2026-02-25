@@ -861,8 +861,8 @@ static void call_var_usage(void) {//main usage
     fprintf(stderr, "                          note: multiple input BAM/CRAM files will be merged in SAM/BAM/CRAM output\n");
     fprintf(stderr, "    --refine-aln          refine alignment in SAM/BAM/CRAM output\n");
     fprintf(stderr, "                          note: output SAM/BAM/CRAM may be unsorted when --refine-aln is set\n");
-    fprintf(stderr, "    --out-sv-rnames          output names of all reads supporting alternative allele in INFO field of VCF output for all SVs [False]\n");
-    fprintf(stderr, "    --out-som-sv-rnames      output names of all reads supporting alternative allele in INFO field of VCF output for mosaic/somatic SVs [False]\n");
+    fprintf(stderr, "    --out-sv-rnames          output names of all reads supporting alternative allele in FORMAT field of VCF output for all SVs [False]\n");
+    fprintf(stderr, "    --out-som-sv-rnames      output names of all reads supporting alternative allele in FORMAT field of VCF output for mosaic/somatic SVs [False]\n");
     // fprintf(stderr, "\n");
     fprintf(stderr, "  Variant calling:\n");
     fprintf(stderr, "    -c --min-cov     INT  min. total read coverage for candidate variant [%d]\n", LONGCALLD_MIN_CAND_DP);

@@ -13,7 +13,7 @@
 ## Updates (release v0.0.9)
 
 * Fix variant calling close to start/end boundaries of chromosomes
-* Add `--out-sv-rnames` and `--out-som-sv-rnames` to output SV-supporing read names (tag: `SVREADS`) in INFO field of VCF
+* Add `--out-sv-rnames` and `--out-som-sv-rnames` to output SV-supporing read names (tag: `SVREADS`) in FORMAT field of VCF
 <!-- * Add --STR  -->
 
 
